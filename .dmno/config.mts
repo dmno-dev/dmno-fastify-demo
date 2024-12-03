@@ -1,12 +1,13 @@
 import { OnePasswordDmnoPlugin } from '@dmno/1password-plugin';
 import { DmnoBaseTypes, defineDmnoService, switchBy } from 'dmno';
+import { GitDataTypes } from 'dmno/vendor-types';
 
 const onePass = new OnePasswordDmnoPlugin('1pass', {
   fallbackToCliBasedAuth: true,
 });
 
 export default defineDmnoService({
-  pick: [],
+  isRoot: true,
   schema: {
     SOME_API_KEY: { // ~ validation demo
       extends: DmnoBaseTypes.string({ startsWith: 'xyz_'}),
@@ -15,6 +16,9 @@ export default defineDmnoService({
     NUMBER_ITEM: { // ~ coercion demo
       extends: DmnoBaseTypes.number({ precision: 2 }),
       value: '123.45678', // coerced to number and rounded according to settings
+    },
+    FN_DEMO: {
+      value: () => DMNO_CONFIG.NUMBER_ITEM * 2,
     },
 
     DB_URL: { // ~ intellisense/docs demo
@@ -35,8 +39,11 @@ export default defineDmnoService({
       value: 'postgres://localhost:5432/my-api-db'
     },
 
-    FN_DEMO: { // ~ functions, and show intellisense
+    INTELLISENSE_DEMO: { // ~ show intellisense
       value: () => DMNO_CONFIG.DB_URL,
+    },
+    GIT_BRANCH: { // ~ type system means we get this stuff for free!
+      extends: GitDataTypes.BranchName,
     },
 
     MY_APP_ENV: { // ~ custom app env flag, used in switch demo below
@@ -50,8 +57,13 @@ export default defineDmnoService({
         production: 'production val',
       }),
     },
+    ONEPASS_ITEM: { // ~ plugins, fetching from backends
+      value: onePass.itemByReference('op://dev test/example/staging'),
+    },
 
-    PORT: { // ~ resuable types means we get this stuff for free
+    // ~ EXAMPLE FASTIFY APP CONFIG ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    PORT: {
       extends: DmnoBaseTypes.port,
       description: 'port to listen on - Fastify CLI will automatically pick this up from the env',
       value: 4321,
@@ -61,21 +73,17 @@ export default defineDmnoService({
       value: 'config-value-from-dmno!',
     },
     SECRET_VAR: { // ~ sensitive demo
-      value: 'please-dont-tell',
+      value: switchBy('MY_APP_ENV', {
+        _default: 'shhh-im-secret', // but not actually sensitive
+        staging: onePass.itemByReference('op://dev test/example/staging'),
+        production: onePass.itemByReference('op://dev test/example/production'),
+      }),
+      sensitive: true,
       description: 'super secret key used to communicate with api',
-      sensitive: true
       // sensitive: {
       //   redactMode: 'show_last_2',
       //   allowedDomains: ['api.sampleapis.com']
       // }
     },
-    ONEPASS_SWITCH: { // ~ OnePassword plugin - everything is composable :)
-      value: switchBy('MY_APP_ENV', {
-        _default: 'not-actually-sensitive',
-        staging: onePass.itemByReference('op://dev test/example/staging'),
-        production: onePass.itemByReference('op://dev test/example/production'),
-      }),
-      sensitive: true,
-    }
   },
 });
